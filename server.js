@@ -100,23 +100,13 @@ app.get('/api/download-muxed', async (req, res) => {
   res.setHeader('Content-Type', type === 'audio' ? 'audio/mpeg' : 'video/mp4');
 
   try {
-    // Bulletproof flags using Android client to bypass 429/403 datacenter blocks on Render
-    const antiBlockFlags = {
-      noCheckCertificates: true,
-      forceIpv4: true,
-      geoBypass: true,
-      extractorArgs: 'youtube:player_client=android'
-    };
-
     const flags = type === 'audio' ? {
-      ...antiBlockFlags,
       format: 'bestaudio',
       extractAudio: true,
       audioFormat: 'mp3',
       audioQuality: `${abr}K`,
       output: '-'
     } : {
-      ...antiBlockFlags,
       format: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best/best`,
       mergeOutputFormat: 'mp4',
       output: '-'
