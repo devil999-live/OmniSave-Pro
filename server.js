@@ -36,32 +36,54 @@ function cleanLog(prefix, data) {
   });
 }
 
+// Helper function to extract YouTube Video ID
+function extractYouTubeId(url) {
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.hostname.includes('youtu.be')) {
+      return parsed.pathname.slice(1).split('/')[0];
+    }
+    if (parsed.searchParams.get('v')) {
+      return parsed.searchParams.get('v');
+    }
+    if (parsed.pathname.includes('/shorts/') || parsed.pathname.includes('/embed/')) {
+      const parts = parsed.pathname.split('/');
+      return parts[parts.indexOf(parsed.pathname.includes('/shorts/') ? 'shorts' : 'embed') + 1];
+    }
+  } catch (e) {
+    const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+    const match = url.match(regExp);
+    return match ? match[1] : null;
+  }
+  return null;
+}
+
 // ==========================================
-// 1. YOUTUBE ENDPOINTS (ANTI-BLOCK HEADERS)
+// 1. YOUTUBE INFO ENDPOINT (BYPASSES RENDER IP BLOCK USING OEMBED)
 // ==========================================
 app.post('/api/youtube/info', async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
+  const videoId = extractYouTubeId(url);
+  if (!videoId) return res.status(400).json({ error: 'Invalid YouTube URL' });
+
   try {
-    const info = await ytdlpExec(url, {
-      dumpJson: true,
-      noPlaylist: true,
-      forceIpv4: true,
-      noCheckCertificates: true,
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      extractorArgs: 'youtube:player_client=android,web'
-    });
+    // Fetch via public oEmbed API to completely avoid Render IP blocking / 429 errors
+    const fetch = (await import('node-fetch')).default || global.fetch;
+    const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+    const oembed = await oembedRes.json();
+
     res.json({
-      title: info.title,
-      uploader: info.uploader || info.channel,
-      duration: info.duration_string || '',
-      thumbnail: info.thumbnail,
-      formats: info.formats || []
+      title: oembed.title || `YouTube Video (${videoId})`,
+      uploader: oembed.author_name || 'YouTube Creator',
+      duration: '',
+      thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      formats: []
     });
   } catch (err) {
     cleanLog('[YouTube Info Error]', err);
-    res.status(500).json({ error: 'Failed to extract video info. YouTube might be blocking Render IP temporarily.' });
+    res.status(500).json({ error: 'Failed to fetch video metadata' });
   }
 });
 
@@ -80,9 +102,7 @@ app.get('/api/download-muxed', (req, res) => {
       getUrl: true,
       format: formatSelector,
       forceIpv4: true,
-      noCheckCertificates: true,
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      extractorArgs: 'youtube:player_client=android,web'
+      noCheckCertificates: true
     }).then(output => {
       const directUrl = output.trim().split('\n')[0];
       if (directUrl) {
@@ -108,9 +128,7 @@ app.get('/api/download-muxed', (req, res) => {
         audioQuality: `${abr}K`,
         output: '-',
         forceIpv4: true,
-        noCheckCertificates: true,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        extractorArgs: 'youtube:player_client=android,web'
+        noCheckCertificates: true
       };
     } else {
       flags = {
@@ -118,9 +136,7 @@ app.get('/api/download-muxed', (req, res) => {
         mergeOutputFormat: 'mp4',
         output: '-',
         forceIpv4: true,
-        noCheckCertificates: true,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        extractorArgs: 'youtube:player_client=android,web'
+        noCheckCertificates: true
       };
     }
 
