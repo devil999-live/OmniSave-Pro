@@ -8,9 +8,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname))); // Serves index.html automatically!
+app.use(express.static(path.join(__dirname)));
 
-// Smart log filter to keep the terminal clean of spam
+// Smart log filter to keep the terminal clean
 function cleanLog(prefix, data) {
   const msg = data ? data.toString() : '';
   msg.split('\n').forEach(line => {
@@ -58,7 +58,7 @@ function extractYouTubeId(url) {
 }
 
 // ==========================================
-// 1. YOUTUBE INFO ENDPOINT (OEMBED BYPASS)
+// 1. YOUTUBE INFO ENDPOINT
 // ==========================================
 app.post('/api/youtube/info', async (req, res) => {
   const { url } = req.body;
@@ -86,65 +86,38 @@ app.post('/api/youtube/info', async (req, res) => {
 });
 
 // ==========================================
-// 2. YOUTUBE DOWNLOAD & MUXING ENDPOINT (FIXED CLIENT BYPASS)
+// 2. YOUTUBE DOWNLOAD & MUXING ENDPOINT
 // ==========================================
-app.get('/api/download-muxed', (req, res) => {
-  const { url, height = '720', type = 'video', abr = '192', title = 'video', direct = '0' } = req.query;
+app.get('/api/download-muxed', async (req, res) => {
+  const { url, height = '720', type = 'video', abr = '192', title = 'video' } = req.query;
   if (!url) return res.status(400).send('URL is required');
 
   const safeTitle = title.replace(/[\/\\?%*:|"<>]/g, '').trim();
   const ext = type === 'audio' ? 'mp3' : 'mp4';
   const filename = `${safeTitle}_${type === 'audio' ? abr + 'kbps' : height + 'p'}.${ext}`;
 
-  // Common anti-block flags that bypass JS challenge & 429/403 errors on Render
-  const antiBlockFlags = {
-    forceIpv4: true,
-    noCheckCertificates: true,
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    extractorArgs: 'youtube:player_client=android'
-  };
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+  res.setHeader('Content-Type', type === 'audio' ? 'audio/mpeg' : 'video/mp4');
 
-  if (direct === '1' || (type === 'video' && Number(height) <= 720)) {
-    const formatSelector = type === 'audio' ? 'bestaudio' : `best[height<=${height}][ext=mp4]/best[height<=${height}]/best`;
-    
-    ytdlpExec(url, {
-      ...antiBlockFlags,
-      getUrl: true,
-      format: formatSelector
-    }).then(output => {
-      const directUrl = output.trim().split('\n')[0];
-      if (directUrl) {
-        return res.redirect(302, directUrl);
-      }
-      fallbackPipeStream();
-    }).catch(() => {
-      fallbackPipeStream();
-    });
-    return;
-  }
-
-  function fallbackPipeStream() {
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
-    res.setHeader('Content-Type', type === 'audio' ? 'audio/mpeg' : 'video/mp4');
-
-    let flags = {};
-    if (type === 'audio') {
-      flags = {
-        ...antiBlockFlags,
-        format: 'bestaudio',
-        extractAudio: true,
-        audioFormat: 'mp3',
-        audioQuality: `${abr}K`,
-        output: '-'
-      };
-    } else {
-      flags = {
-        ...antiBlockFlags,
-        format: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best/best`,
-        mergeOutputFormat: 'mp4',
-        output: '-'
-      };
-    }
+  try {
+    // Force multiple client types (web, ios, android) to bypass 429/403 blocks on datacenter IPs
+    const flags = type === 'audio' ? {
+      format: 'bestaudio',
+      extractAudio: true,
+      audioFormat: 'mp3',
+      audioQuality: `${abr}K`,
+      output: '-',
+      noCheckCertificates: true,
+      forceIpv4: true,
+      extractorArgs: 'youtube:player_client=web,ios'
+    } : {
+      format: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best/best`,
+      mergeOutputFormat: 'mp4',
+      output: '-',
+      noCheckCertificates: true,
+      forceIpv4: true,
+      extractorArgs: 'youtube:player_client=web,ios'
+    };
 
     const subprocess = ytdlpExec.exec(url, flags);
     subprocess.stdout.pipe(res);
@@ -156,13 +129,13 @@ app.get('/api/download-muxed', (req, res) => {
     req.on('close', () => {
       try { subprocess.kill(); } catch (_) {}
     });
-  }
-
-  if (type === 'video' && Number(height) > 720) {
-    fallbackPipeStream();
+  } catch (err) {
+    cleanLog('[Download Error]', err);
+    if (!res.headersSent) {
+      res.status(500).send('Download failed due to server restrictions.');
+    }
   }
 });
-
 
 // ==========================================
 // 3. INSTAGRAM ENDPOINTS
