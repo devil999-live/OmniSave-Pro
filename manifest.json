@@ -1,0 +1,17 @@
+{
+  "name": "OmniSave Pro",
+  "short_name": "OmniSave",
+  "description": "High-Speed YouTube and Instagram Media Downloader",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060913",
+  "theme_color": "#060913",
+  "icons": [
+    {
+      "src": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/svgs/solid/bolt.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

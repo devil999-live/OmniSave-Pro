@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OmniSave Pro — Media Downloader</title>
+  
+  <!-- PWA Manifest & Theme -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#060913">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              925: '#0a0f1d',
+              950: '#060913',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #060913;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+
+    .tab-content {
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+    .tab-hidden {
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+      position: absolute;
+      width: 100%;
+      visibility: hidden;
+    }
+    .tab-active {
+      opacity: 1;
+      transform: translateY(0);
+      position: relative;
+      visibility: visible;
+    }
+  </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
+
+  <!-- Subtle Background Glow -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div class="absolute -top-40 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+    <div class="absolute top-1/3 right-1/4 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- Clean Minimal Header -->
+  <header class="sticky top-0 z-40 glass-panel border-b border-slate-800/80">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 via-indigo-500 to-pink-500 p-[1px] shadow-md shadow-cyan-500/15">
+          <div class="w-full h-full bg-slate-950 rounded-[11px] flex items-center justify-center">
+            <i class="fa-solid fa-bolt text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-400 text-lg"></i>
+          </div>
+        </div>
+        <div>
+          <h1 class="text-lg font-extrabold tracking-tight text-white">
+            OmniSave <span class="text-cyan-400">Pro</span>
+          </h1>
+          <p class="text-[11px] text-slate-400">High-Speed Media Downloader</p>
+        </div>
+      </div>
+
+      <!-- Right Header Actions (Install PWA Button & Backend Status) -->
+      <div class="flex items-center gap-3">
+        <!-- PWA Install Button (Hidden until browser prompts install) -->
+        <button
+          id="installAppBtn"
+          onclick="installPWA()"
+          style="display: none;"
+          class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold shadow-md shadow-cyan-500/20 transition flex items-center gap-1.5"
+        >
+          <i class="fa-solid fa-download"></i>
+          <span>Install App</span>
+        </button>
+
+        <!-- Backend Connection Status Pill -->
+        <div id="backendStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300">
+          <span id="backendStatusDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span id="backendStatusText">Ready</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="relative z-10 flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pt-8 pb-24">
+
+    <!-- 2-Tab Navigation Switcher -->
+    <div class="flex justify-center mb-8">
+      <div class="inline-flex p-1.5 rounded-2xl bg-slate-900/95 border border-slate-800 shadow-inner w-full sm:w-auto">
+        <button
+          id="tabBtn-youtube"
+          onclick="switchTab('youtube')"
+          class="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5 bg-gradient-to-r from-rose-600 to-red-500 text-white shadow-md shadow-rose-600/20"
+        >
+          <i class="fa-brands fa-youtube text-base"></i>
+          <span>YouTube Downloader</span>
+        </button>
+
+        <button
+          id="tabBtn-instagram"
+          onclick="switchTab('instagram')"
+          class="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5 text-slate-400 hover:text-white"
+        >
+          <i class="fa-brands fa-instagram text-base"></i>
+          <span>Instagram Multi-Reel</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab Viewport -->
+    <div class="relative">
+
+      <!-- ========================================== -->
+      <!-- TAB 1: YOUTUBE DOWNLOADER                  -->
+      <!-- ========================================== -->
+      <section id="tabContent-youtube" class="tab-content tab-active space-y-6">
+
+        <!-- Search / Paste URL Box -->
+        <div class="glass-panel rounded-2xl border border-slate-800/90 p-5 sm:p-6 shadow-xl">
+          <form onsubmit="event.preventDefault(); handleYouTubeFetch();" class="flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-1">
+              <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                <i class="fa-brands fa-youtube text-rose-500 text-lg"></i>
+              </div>
+              <input
+                id="ytUrlInput"
+                type="url"
+                required
+                placeholder="Paste YouTube video or Shorts link here..."
+                class="w-full pl-11 pr-24 py-3.5 bg-slate-950/90 border border-slate-800 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition"
+              />
+              <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <button
+                  id="ytClearBtn"
+                  onclick="clearYouTubeInput()"
+                  type="button"
+                  class="hidden px-2 py-1.5 rounded-lg text-slate-400 hover:text-white text-xs transition"
+                  title="Clear"
+                >
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+                <button
+                  onclick="pasteToInput('ytUrlInput')"
+                  type="button"
+                  class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-medium transition flex items-center gap-1.5"
+                >
+                  <i class="fa-regular fa-paste"></i>
+                  <span>Paste</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              id="ytExtractBtn"
+              type="submit"
+              class="px-7 py-3.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-rose-600 to-red-500 hover:from-rose-500 hover:to-red-400 text-white shadow-lg shadow-rose-600/25 active:scale-[0.99] transition flex items-center justify-center gap-2 shrink-0"
+            >
+              <i id="ytExtractIcon" class="fa-solid fa-magnifying-glass"></i>
+              <span id="ytExtractText">Fetch Formats</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Active Download / Muxing Progress Bar (Hidden until download starts) -->
+        <div id="activeDownloadBanner" class="hidden glass-panel rounded-2xl border border-cyan-500/40 p-4 shadow-lg">
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shrink-0">
+                <i id="dlSpinnerIcon" class="fa-solid fa-circle-notch fa-spin text-sm"></i>
+              </div>
+              <div class="min-w-0">
+                <h4 id="dlStatusTitle" class="text-xs sm:text-sm font-semibold text-white truncate">Preparing download...</h4>
+                <p id="dlFilenameSub" class="text-[11px] font-mono text-slate-400 truncate"></p>
+              </div>
+            </div>
+            <span id="dlSpeedMetric" class="text-xs font-mono text-cyan-300 shrink-0">Starting...</span>
+          </div>
+          <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+            <div id="dlProgressBar" class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-300 rounded-full" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Empty State (Shown before user searches a link) -->
+        <div id="ytEmptyState" class="glass-panel rounded-2xl border border-slate-800/60 p-10 text-center">
+          <div class="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-3 text-rose-400">
+            <i class="fa-brands fa-youtube text-2xl"></i>
+          </div>
+          <h3 class="text-base font-semibold text-white">Paste a YouTube Link to Start</h3>
+          <p class="text-xs text-slate-400 max-w-md mx-auto mt-1">
+            Supports YouTube Videos &amp; Shorts in 4K (2160p), 1440p, 1080p Full HD, 720p, and MP3/M4A Audio.
+          </p>
+        </div>
+
+        <!-- Dynamic YouTube Results Container (Hidden until a link is fetched) -->
+        <div id="ytResultContainer" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          <!-- Video Info Card -->
+          <div class="lg:col-span-5 glass-panel rounded-2xl border border-slate-800/90 p-4 flex flex-col justify-between space-y-4">
+            <div class="space-y-3">
+              <div class="relative rounded-xl overflow-hidden bg-slate-900 border border-slate-800 aspect-video">
+                <img
+                  id="ytThumb"
+                  src=""
+                  alt="Video Thumbnail"
+                  class="w-full h-full object-cover"
+                />
+                <span id="ytDuration" class="hidden absolute bottom-2 right-2 px-2 py-0.5 rounded bg-slate-950/90 border border-slate-700 text-xs font-mono font-semibold text-white"></span>
+              </div>
+
+              <div class="space-y-1">
+                <p id="ytUploader" class="text-xs font-medium text-cyan-400 truncate"></p>
+                <h3 id="ytTitle" class="text-sm sm:text-base font-bold text-white leading-snug line-clamp-2"></h3>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+              <span>Audio + Video Merged</span>
+              <span class="text-emerald-400 font-medium flex items-center gap-1">
+                <i class="fa-solid fa-circle-check"></i> Ready
+              </span>
+            </div>
+          </div>
+
+          <!-- Formats Selection Area -->
+          <div class="lg:col-span-7 space-y-4">
+            
+            <!-- Video Resolutions -->
+            <div class="glass-panel rounded-2xl border border-slate-800/90 p-4 sm:p-5">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                  <i class="fa-solid fa-video text-cyan-400"></i>
+                  <span>Video Formats (MP4)</span>
+                </h4>
+                <span class="text-[11px] text-slate-400">With Sound</span>
+              </div>
+              <div id="ytVideoGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+            </div>
+
+            <!-- Audio Tracks -->
+            <div class="glass-panel rounded-2xl border border-slate-800/90 p-4 sm:p-5">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                  <i class="fa-solid fa-headphones text-pink-400"></i>
+                  <span>Audio Only (MP3 / M4A)</span>
+                </h4>
+                <span class="text-[11px] text-slate-400">Direct Stream</span>
+              </div>
+              <div id="ytAudioGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: INSTAGRAM MULTI-REEL DOWNLOADER     -->
+      <!-- ========================================== -->
+      <section id="tabContent-instagram" class="tab-content tab-hidden space-y-6">
+
+        <div class="glass-panel rounded-2xl border border-slate-800/90 p-5 sm:p-6 shadow-xl">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <i class="fa-brands fa-instagram text-pink-500"></i>
+                <span>Instagram Multi-Reel Downloader</span>
+              </h2>
+              <p class="text-xs text-slate-400">Paste one or more Instagram Reel / Post links below to download in HD MP4.</p>
+            </div>
+
+            <button
+              onclick="addInstagramInputRow('')"
+              type="button"
+              class="px-3.5 py-2 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 text-xs font-semibold text-pink-300 border border-pink-500/30 transition flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              <i class="fa-solid fa-plus"></i>
+              <span>Add Another Link</span>
+            </button>
+          </div>
+
+          <!-- Dynamic Input Rows -->
+          <div id="igInputsList" class="space-y-2.5 mb-5"></div>
+
+          <!-- Action Buttons -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-800/80">
+            <span class="text-xs text-slate-400">
+              Total Links: <strong id="igQueueCount" class="text-white font-mono">1</strong>
+            </span>
+
+            <div class="flex items-center gap-2.5">
+              <button
+                onclick="addInstagramInputRow('')"
+                type="button"
+                class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 transition flex items-center gap-1.5"
+              >
+                <i class="fa-solid fa-plus text-pink-400"></i>
+                <span>+ Add Link</span>
+              </button>
+
+              <button
+                id="igBatchExtractBtn"
+                onclick="handleInstagramBatchExtract()"
+                type="button"
+                class="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-xs sm:text-sm bg-gradient-to-r from-pink-600 to-fuchsia-600 hover:from-pink-500 hover:to-fuchsia-500 text-white shadow-lg shadow-pink-600/25 transition flex items-center justify-center gap-2"
+              >
+                <i id="igBatchIcon" class="fa-solid fa-download"></i>
+                <span id="igBatchText">Fetch &amp; Download Reels</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instagram Results Grid -->
+        <div id="igResultsWrapper" class="hidden space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-white">Ready to Download</h3>
+            <span id="igBatchSummaryBadge" class="text-xs font-mono text-slate-400"></span>
+          </div>
+          <div id="igResultsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MINIMIZED COMPACT LOG BAR (COLLAPSED BY DEFAULT)          -->
+  <!-- ======================================================== -->
+  <footer class="fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/80">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6">
+      <!-- Single-Line Compact Status Bar -->
+      <div class="h-9 flex items-center justify-between gap-3 text-xs font-mono">
+        <div class="flex items-center gap-2 min-w-0 truncate">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+          <span class="text-slate-400 shrink-0">Log:</span>
+          <span id="miniLogPreview" class="text-slate-300 truncate">Ready. Paste a link above to extract media streams.</span>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            onclick="clearTerminalLogs()"
+            class="text-[11px] text-slate-400 hover:text-slate-200 px-1.5 py-0.5 rounded transition"
+            title="Clear logs"
+          >
+            Clear
+          </button>
+          <button
+            onclick="toggleTerminalDrawer()"
+            class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-cyan-400 flex items-center gap-1 transition"
+          >
+            <span id="terminalToggleLabel">Show Logs</span>
+            <i id="terminalToggleIcon" class="fa-solid fa-chevron-up text-[10px]"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Expandable Log Body (Hidden by default) -->
+      <div id="terminalBody" class="hidden py-2.5 max-h-36 overflow-y-auto font-mono text-[11px] space-y-1 border-t border-slate-800/80"></div>
+    </div>
+  </footer>
+
+  <!-- ======================================================== -->
+  <!-- PRODUCTION JAVASCRIPT LOGIC                              -->
+  <!-- ======================================================== -->
+  <script>
+    // PWA Install Prompt Handler
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('installAppBtn');
+      if (installBtn) installBtn.style.display = 'flex';
+    });
+
+    async function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        showToast('App installed successfully!', 'success');
+      }
+      deferredPrompt = null;
+      document.getElementById('installAppBtn').style.display = 'none';
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.log('SW registration failed: ', err);
+        });
+      });
+    }
+
+    // Automatically use current origin if running on Node server, otherwise target localhost:3000
+    const API_BASE = (window.location.protocol.startsWith('http') && window.location.port === '3000')
+      ? ''
+      : 'http://localhost:3000';
+
+    const state = {
+      activeTab: 'youtube',
+      terminalExpanded: false,
+      backendOnline: false,
+      logs: [],
+      currentYouTube: null,
+      igUrls: [''] // Starts with 1 clean empty input
+    };
+
+    /**************************************************************
+     * 1. SILENT FILENAME SANITIZER (No UI Clutter)
+     **************************************************************/
+    function sanitizeFilename(rawTitle = 'video', ext = 'mp4') {
+      const cleaned = String(rawTitle)
+        .replace(/[\/\\?%*:|"<>]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim() || 'media_download';
+      return ext ? `${cleaned}.${ext}` : cleaned;
+    }
+
+    /**************************************************************
+     * 2. MINIMAL LOG SYSTEM
+     **************************************************************/
+    function logEvent(tag, message) {
+      const time = new Date().toTimeString().split(' ')[0];
+      state.logs.push({ time, tag, message });
+
+      const preview = document.getElementById('miniLogPreview');
+      if (preview) {
+        preview.textContent = `[${tag}] ${message}`;
+      }
+
+      const container = document.getElementById('terminalBody');
+      if (container) {
+        container.innerHTML = state.logs.map(l => `
+          <div class="flex items-start gap-2 text-slate-300">
+            <span class="text-slate-500 shrink-0">[${l.time}]</span>
+            <span class="text-cyan-400 shrink-0">[${escapeHtml(l.tag)}]</span>
+            <span class="break-all">${escapeHtml(l.message)}</span>
+          </div>
+        `).join('');
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+
+    function toggleTerminalDrawer() {
+      const body = document.getElementById('terminalBody');
+      const icon = document.getElementById('terminalToggleIcon');
+      const label = document.getElementById('terminalToggleLabel');
+      state.terminalExpanded = !state.terminalExpanded;
+
+      if (state.terminalExpanded) {
+        body.classList.remove('hidden');
+        icon.className = 'fa-solid fa-chevron-down text-[10px]';
+        label.textContent = 'Hide Logs';
+      } else {
+        body.classList.add('hidden');
+        icon.className = 'fa-solid fa-chevron-up text-[10px]';
+        label.textContent = 'Show Logs';
+      }
+    }
+
+    function clearTerminalLogs() {
+      state.logs = [];
+      const container = document.getElementById('terminalBody');
+      if (container) container.innerHTML = '';
+      document.getElementById('miniLogPreview').textContent = 'Logs cleared.';
+    }
+
+    /**************************************************************
+     * 3. YOUTUBE URL PARSER & REAL METADATA FETCHER
+     **************************************************************/
+    function extractYouTubeId(url) {
+      try {
+        const parsed = new URL(url.trim());
+        if (parsed.hostname.includes('youtu.be')) {
+          return parsed.pathname.slice(1).split('/')[0];
+        }
+        if (parsed.searchParams.get('v')) {
+          return parsed.searchParams.get('v');
+        }
+        if (parsed.pathname.includes('/shorts/') || parsed.pathname.includes('/embed/')) {
+          const parts = parsed.pathname.split('/');
+          return parts[parts.indexOf(parsed.pathname.includes('/shorts/') ? 'shorts' : 'embed') + 1];
+        }
+      } catch (e) {
+        const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+        const match = url.match(regExp);
+        return match ? match[1] : null;
+      }
+      return null;
+    }
+
+    async function handleYouTubeFetch() {
+      const inputEl = document.getElementById('ytUrlInput');
+      const url = inputEl.value.trim();
+
+      if (!url) {
+        showToast('Please paste a YouTube link first.', 'warn');
+        return;
+      }
+
+      const videoId = extractYouTubeId(url);
+      if (!videoId) {
+        showToast('Invalid YouTube URL. Please paste a valid video or Shorts link.', 'warn');
+        return;
+      }
+
+      const btnIcon = document.getElementById('ytExtractIcon');
+      const btnText = document.getElementById('ytExtractText');
+      const extractBtn = document.getElementById('ytExtractBtn');
+
+      btnIcon.className = 'fa-solid fa-circle-notch fa-spin';
+      btnText.textContent = 'Fetching...';
+      extractBtn.disabled = true;
+
+      logEvent('YOUTUBE', `Fetching formats for ${url}`);
+
+      try {
+        let backendData = null;
+        try {
+          const res = await fetch(`${API_BASE}/api/youtube/info`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
+          if (res.ok) {
+            backendData = await res.json();
+            state.backendOnline = true;
+            updateBackendStatus(true);
+          }
+        } catch (e) {
+          try {
+            const resGet = await fetch(`${API_BASE}/api/youtube-info?url=${encodeURIComponent(url)}`);
+            if (resGet.ok) {
+              backendData = await resGet.json();
+              state.backendOnline = true;
+              updateBackendStatus(true);
+            }
+          } catch (_) {}
+        }
+
+        if (backendData && backendData.title) {
+          logEvent('YT-DLP', `Extracted "${backendData.title}" from local server.`);
+          renderYouTubeResult({
+            url,
+            videoId,
+            title: backendData.title,
+            uploader: backendData.uploader || backendData.author || 'YouTube Channel',
+            duration: backendData.duration || '',
+            thumbnail: backendData.thumbnail || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+            videoFormats: deduplicateVideoList(backendData.videoFormats || backendData.formats || []),
+            audioFormats: deduplicateAudioList(backendData.audioFormats || backendData.formats || [])
+          });
+        } else {
+          const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+          const oembed = await oembedRes.json();
+
+          const realTitle = oembed.title || `YouTube Video (${videoId})`;
+          const realAuthor = oembed.author_name || 'YouTube Creator';
+          const realThumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+          logEvent('METADATA', `Loaded video "${realTitle}" by ${realAuthor}`);
+
+          renderYouTubeResult({
+            url,
+            videoId,
+            title: realTitle,
+            uploader: realAuthor,
+            duration: '',
+            thumbnail: realThumb,
+            videoFormats: [
+              { height: 2160, label: '2160p (4K Ultra HD)', ext: 'mp4', needsMuxing: true },
+              { height: 1440, label: '1440p (2K QHD)', ext: 'mp4', needsMuxing: true },
+              { height: 1080, label: '1080p (Full HD)', ext: 'mp4', needsMuxing: true },
+              { height: 720,  label: '720p (HD)', ext: 'mp4', needsMuxing: false },
+              { height: 480,  label: '480p (Standard)', ext: 'mp4', needsMuxing: false },
+              { height: 360,  label: '360p (Medium)', ext: 'mp4', needsMuxing: false }
+            ],
+            audioFormats: [
+              { abr: 320, ext: 'mp3', label: '320 kbps MP3' },
+              { abr: 256, ext: 'm4a', label: '256 kbps M4A' },
+              { abr: 192, ext: 'mp3', label: '192 kbps MP3' },
+              { abr: 128, ext: 'm4a', label: '128 kbps M4A' }
+            ]
+          });
+        }
+      } catch (err) {
+        logEvent('ERROR', err.message || 'Failed to fetch video details.');
+        showToast('Could not fetch video information. Check your link.', 'warn');
+      } finally {
+        btnIcon.className = 'fa-solid fa-magnifying-glass';
+        btnText.textContent = 'Fetch Formats';
+        extractBtn.disabled = false;
+      }
+    }
+
+    function deduplicateVideoList(rawList) {
+      const seen = new Set();
+      const result = [];
+      rawList.forEach(item => {
+        const h = Number(item.height || String(item.quality || '').replace(/\D/g, ''));
+        if (h && !seen.has(h)) {
+          seen.add(h);
+          result.push({
+            height: h,
+            label: `${h}p ${h >= 2160 ? '(4K)' : h >= 1440 ? '(2K)' : h >= 1080 ? '(Full HD)' : h >= 720 ? '(HD)' : ''}`.trim(),
+            ext: 'mp4',
+            needsMuxing: item.needsMuxing !== undefined ? item.needsMuxing : h >= 1080,
+            directUrl: item.directUrl || item.url || null
+          });
+        }
+      });
+      if (result.length === 0) {
+        return [
+          { height: 1080, label: '1080p (Full HD)', ext: 'mp4', needsMuxing: true },
+          { height: 720,  label: '720p (HD)', ext: 'mp4', needsMuxing: false },
+          { height: 480,  label: '480p', ext: 'mp4', needsMuxing: false },
+          { height: 360,  label: '360p', ext: 'mp4', needsMuxing: false }
+        ];
+      }
+      return result.sort((a, b) => b.height - a.height);
+    }
+
+    function deduplicateAudioList(rawList) {
+      const seen = new Set();
+      const result = [];
+      rawList.forEach(item => {
+        const abr = Math.round(Number(item.abr || item.bitrate || 0));
+        if (abr && !seen.has(abr)) {
+          seen.add(abr);
+          result.push({
+            abr,
+            ext: item.ext || 'm4a',
+            label: `${abr} kbps ${(item.ext || 'M4A').toUpperCase()}`,
+            directUrl: item.directUrl || item.url || null
+          });
+        }
+      });
+      if (result.length === 0) {
+        return [
+          { abr: 320, ext: 'mp3', label: '320 kbps MP3' },
+          { abr: 192, ext: 'm4a', label: '192 kbps M4A' },
+          { abr: 128, ext: 'm4a', label: '128 kbps M4A' }
+        ];
+      }
+      return result.sort((a, b) => b.abr - a.abr);
+    }
+
+    function renderYouTubeResult(data) {
+      state.currentYouTube = data;
+
+      document.getElementById('ytEmptyState').classList.add('hidden');
+      const container = document.getElementById('ytResultContainer');
+      container.classList.remove('hidden');
+
+      const thumbEl = document.getElementById('ytThumb');
+      thumbEl.src = data.thumbnail;
+      thumbEl.onerror = function () {
+        this.src = `https://i.ytimg.com/vi/${data.videoId}/hqdefault.jpg`;
+      };
+
+      document.getElementById('ytTitle').textContent = data.title;
+      document.getElementById('ytUploader').textContent = data.uploader;
+
+      const durEl = document.getElementById('ytDuration');
+      if (data.duration) {
+        durEl.textContent = data.duration;
+        durEl.classList.remove('hidden');
+      } else {
+        durEl.classList.add('hidden');
+      }
+
+      const videoGrid = document.getElementById('ytVideoGrid');
+      videoGrid.innerHTML = data.videoFormats.map((v, idx) => `
+        <button
+          onclick="startYouTubeDownload('video', ${idx})"
+          class="p-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/40 transition flex items-center justify-between gap-2 text-left group"
+        >
+          <div>
+            <div class="text-sm font-bold text-white group-hover:text-cyan-300 transition">${escapeHtml(v.label)}</div>
+            <div class="text-[11px] text-slate-400 font-mono">MP4 • ${v.needsMuxing ? 'FFmpeg HD Mux' : 'Direct CDN'}</div>
+          </div>
+          <span class="w-8 h-8 rounded-lg bg-cyan-500/15 group-hover:bg-cyan-500 text-cyan-400 group-hover:text-slate-950 flex items-center justify-center transition shrink-0">
+            <i class="fa-solid fa-download text-xs"></i>
+          </span>
+        </button>
+      `).join('');
+
+      const audioGrid = document.getElementById('ytAudioGrid');
+      audioGrid.innerHTML = data.audioFormats.map((a, idx) => `
+        <button
+          onclick="startYouTubeDownload('audio', ${idx})"
+          class="p-3 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-pink-500/40 transition flex items-center justify-between gap-2 text-left group"
+        >
+          <div>
+            <div class="text-sm font-bold text-white group-hover:text-pink-300 transition">${escapeHtml(a.label)}</div>
+            <div class="text-[11px] text-slate-400 font-mono">Audio Track</div>
+          </div>
+          <span class="w-8 h-8 rounded-lg bg-pink-500/15 group-hover:bg-pink-500 text-pink-400 group-hover:text-white flex items-center justify-center transition shrink-0">
+            <i class="fa-solid fa-music text-xs"></i>
+          </span>
+        </button>
+      `).join('');
+    }
+
+    /**************************************************************
+     * 4. REAL DOWNLOAD HANDLER (YOUTUBE & AUDIO)
+     **************************************************************/
+    async function startYouTubeDownload(type, index) {
+      const media = state.currentYouTube;
+      if (!media) return;
+
+      const format = type === 'video' ? media.videoFormats[index] : media.audioFormats[index];
+      if (!format) return;
+
+      const cleanTitle = sanitizeFilename(media.title, '');
+      const ext = type === 'audio' ? (format.ext || 'mp3') : 'mp4';
+      const qualityTag = type === 'audio' ? `${format.abr}kbps` : `${format.height}p`;
+      const targetFilename = `${cleanTitle}_${qualityTag}.${ext}`;
+
+      const banner = document.getElementById('activeDownloadBanner');
+      const statusTitle = document.getElementById('dlStatusTitle');
+      const filenameSub = document.getElementById('dlFilenameSub');
+      const speedMetric = document.getElementById('dlSpeedMetric');
+      const progressBar = document.getElementById('dlProgressBar');
+
+      banner.classList.remove('hidden');
+      statusTitle.textContent = type === 'video' 
+        ? `Merging ${format.height}p Video + Audio via FFmpeg...`
+        : `Downloading audio track...`;
+      filenameSub.textContent = targetFilename;
+      progressBar.style.width = '100%';
+      speedMetric.textContent = 'Downloading...';
+
+      logEvent('DOWNLOAD', `Initiating download for ${targetFilename}`);
+      showToast(`Downloading: ${targetFilename}`, 'success');
+
+      // FORCE ALL QUALITIES (4K down to 360p) through backend mux endpoint to guarantee audio
+      const downloadUrl = type === 'audio' 
+        ? `${API_BASE}/api/download-muxed?url=${encodeURIComponent(media.url)}&type=audio&abr=${format.abr || 192}&title=${encodeURIComponent(cleanTitle)}`
+        : `${API_BASE}/api/download-muxed?url=${encodeURIComponent(media.url)}&height=${format.height || 720}&type=video&title=${encodeURIComponent(cleanTitle)}`;
+
+      triggerAnchorDownload(downloadUrl, targetFilename);
+    }
+
+    function triggerAnchorDownload(href, filename) {
+      const a = document.createElement('a');
+      a.href = href;
+      if (filename) a.download = filename;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function clearYouTubeInput() {
+      const input = document.getElementById('ytUrlInput');
+      input.value = '';
+      document.getElementById('ytClearBtn').classList.add('hidden');
+      input.focus();
+    }
+
+    /**************************************************************
+     * 5. INSTAGRAM MULTI-REEL BATCH DOWNLOADER
+     **************************************************************/
+    function renderInstagramInputRows() {
+      const list = document.getElementById('igInputsList');
+      const countEl = document.getElementById('igQueueCount');
+      if (!list) return;
+
+      countEl.textContent = state.igUrls.length;
+
+      list.innerHTML = state.igUrls.map((url, idx) => `
+        <div class="flex items-center gap-2">
+          <span class="w-8 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-mono text-pink-400 shrink-0">
+            ${idx + 1}
+          </span>
+          <div class="relative flex-1">
+            <input
+              type="url"
+              value="${escapeHtml(url)}"
+              oninput="updateInstagramRowValue(${idx}, this.value)"
+              placeholder="Paste Instagram Reel or Post URL (https://www.instagram.com/reel/...)"
+              class="w-full pl-3.5 pr-20 py-2.5 bg-slate-950/90 border border-slate-800 focus:border-pink-500 rounded-xl text-xs sm:text-sm text-white placeholder-slate-500 outline-none transition"
+            />
+            <button
+              onclick="pasteToIgRow(${idx})"
+              type="button"
+              class="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-200 font-medium transition"
+            >
+              Paste
+            </button>
+          </div>
+          <button
+            onclick="removeInstagramInputRow(${idx})"
+            type="button"
+            class="w-10 h-10 rounded-xl bg-slate-900 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 transition flex items-center justify-center shrink-0"
+            title="Remove field"
+          >
+            <i class="fa-solid fa-trash-can text-xs"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function addInstagramInputRow(val = '') {
+      state.igUrls.push(val);
+      renderInstagramInputRows();
+    }
+
+    function removeInstagramInputRow(index) {
+      if (state.igUrls.length <= 1) {
+        state.igUrls[0] = '';
+      } else {
+        state.igUrls.splice(index, 1);
+      }
+      renderInstagramInputRows();
+    }
+
+    function updateInstagramRowValue(index, val) {
+      state.igUrls[index] = val;
+    }
+
+    async function pasteToIgRow(index) {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          state.igUrls[index] = text.trim();
+          renderInstagramInputRows();
+        }
+      } catch {
+        showToast('Press Ctrl+V / Cmd+V inside the input box to paste.', 'info');
+      }
+    }
+
+    function extractInstagramShortcode(url) {
+      const match = url.match(/instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+      return match ? match[1] : null;
+    }
+
+    async function handleInstagramBatchExtract() {
+      const validUrls = state.igUrls.map(u => u.trim()).filter(Boolean);
+      if (validUrls.length === 0) {
+        showToast('Please paste at least one Instagram Reel or Post link.', 'warn');
+        return;
+      }
+
+      const invalid = validUrls.find(u => !extractInstagramShortcode(u));
+      if (invalid) {
+        showToast('Please enter a valid Instagram Reel or Post link (e.g. instagram.com/reel/...).', 'warn');
+        return;
+      }
+
+      const btnIcon = document.getElementById('igBatchIcon');
+      const btnText = document.getElementById('igBatchText');
+      const btn = document.getElementById('igBatchExtractBtn');
+
+      btnIcon.className = 'fa-solid fa-circle-notch fa-spin';
+      btnText.textContent = `Fetching ${validUrls.length} Reel(s)...`;
+      btn.disabled = true;
+
+      logEvent('INSTAGRAM', `Processing batch of ${validUrls.length} Instagram link(s)...`);
+
+      try {
+        let batchItems = null;
+
+        try {
+          const res = await fetch(`${API_BASE}/api/instagram/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: validUrls })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.items || data.results)) {
+              batchItems = data.items || data.results;
+              state.backendOnline = true;
+              updateBackendStatus(true);
+            }
+          }
+        } catch (_) {}
+
+        if (!batchItems) {
+          batchItems = validUrls.map((url, idx) => {
+            const code = extractInstagramShortcode(url) || `Reel_${idx + 1}`;
+            return {
+              url,
+              shortcode: code,
+              title: `Instagram_Reel_${code}`,
+              directDownloadUrl: `${API_BASE}/api/instagram/download?url=${encodeURIComponent(url)}&title=${encodeURIComponent('Instagram_Reel_' + code)}`
+            };
+          });
+        }
+
+        renderInstagramResults(batchItems);
+        logEvent('INSTAGRAM', `Prepared ${batchItems.length} Reel(s) for MP4 download.`);
+      } catch (err) {
+        logEvent('ERROR', err.message || 'Instagram batch error');
+        showToast('Failed to process Instagram links.', 'warn');
+      } finally {
+        btnIcon.className = 'fa-solid fa-download';
+        btnText.textContent = 'Fetch & Download Reels';
+        btn.disabled = false;
+      }
+    }
+
+    function renderInstagramResults(items) {
+      const wrapper = document.getElementById('igResultsWrapper');
+      const grid = document.getElementById('igResultsGrid');
+      const badge = document.getElementById('igBatchSummaryBadge');
+
+      wrapper.classList.remove('hidden');
+      badge.textContent = `${items.length} Reel(s)`;
+
+      grid.innerHTML = items.map((item, idx) => {
+        const code = item.shortcode || extractInstagramShortcode(item.url) || `${idx + 1}`;
+        const safeFilename = sanitizeFilename(item.title || `Instagram_Reel_${code}`, 'mp4');
+        const downloadUrl = item.videoUrl || item.directUrl || item.directDownloadUrl || `${API_BASE}/api/instagram/download?url=${encodeURIComponent(item.url)}`;
+
+        return `
+          <div class="glass-panel rounded-2xl border border-slate-800/90 p-4 flex flex-col justify-between gap-4">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="px-2.5 py-0.5 rounded-full bg-pink-500/15 border border-pink-500/30 text-pink-300 text-xs font-mono font-semibold">
+                  Reel #${idx + 1} • ${escapeHtml(code)}
+                </span>
+                <a
+                  href="${escapeHtml(item.url)}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs text-slate-400 hover:text-white transition"
+                  title="Open original link"
+                >
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+              </div>
+
+              <p class="text-xs font-mono text-slate-300 truncate" title="${escapeHtml(item.url)}">
+                ${escapeHtml(item.url)}
+              </p>
+            </div>
+
+            <a
+              href="${escapeHtml(downloadUrl)}"
+              download="${escapeHtml(safeFilename)}"
+              onclick="triggerInstagramMp4Download('${escapeHtml(safeFilename)}', '${escapeHtml(item.url)}')"
+              class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-600 to-fuchsia-600 hover:from-pink-500 hover:to-fuchsia-500 text-white text-xs font-semibold shadow-md shadow-pink-600/20 transition flex items-center justify-center gap-2 text-center"
+            >
+              <i class="fa-solid fa-download"></i>
+              <span>Download MP4</span>
+            </a>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function triggerInstagramMp4Download(filename, originalUrl) {
+      logEvent('INSTAGRAM', `Downloading ${filename} from ${originalUrl}`);
+      showToast(`Downloading MP4: ${filename}`, 'success');
+    }
+
+    /**************************************************************
+     * 6. TAB SWITCHING & UTILITIES
+     **************************************************************/
+    function switchTab(tabId) {
+      state.activeTab = tabId;
+      const ytContent = document.getElementById('tabContent-youtube');
+      const igContent = document.getElementById('tabContent-instagram');
+      const ytBtn = document.getElementById('tabBtn-youtube');
+      const igBtn = document.getElementById('tabBtn-instagram');
+
+      if (tabId === 'youtube') {
+        ytContent.classList.remove('tab-hidden');
+        ytContent.classList.add('tab-active');
+        igContent.classList.remove('tab-active');
+        igContent.classList.add('tab-hidden');
+
+        ytBtn.className = 'flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5 bg-gradient-to-r from-rose-600 to-red-500 text-white shadow-md shadow-rose-600/20';
+        igBtn.className = 'flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5 text-slate-400 hover:text-white';
+      } else {
+        igContent.classList.remove('tab-hidden');
+        igContent.classList.add('tab-active');
+        ytContent.classList.remove('tab-active');
+        ytContent.classList.add('tab-hidden');
+
+        igBtn.className = 'flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5 bg-gradient-to-r from-pink-600 to-fuchsia-600 text-white shadow-md shadow-pink-600/20';
+        ytBtn.className = 'flex-1 sm:flex-initial px-6 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2.5 text-slate-400 hover:text-white';
+      }
+    }
+
+    async function pasteToInput(inputId) {
+      const el = document.getElementById(inputId);
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          el.value = text.trim();
+          document.getElementById('ytClearBtn').classList.remove('hidden');
+          handleYouTubeFetch();
+        }
+      } catch {
+        el.focus();
+        showToast('Press Ctrl+V / Cmd+V to paste your link.', 'info');
+      }
+    }
+
+    function updateBackendStatus(isOnline) {
+      const dot = document.getElementById('backendStatusDot');
+      const text = document.getElementById('backendStatusText');
+      if (isOnline) {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        text.textContent = 'Server Connected';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-cyan-400';
+        text.textContent = 'Ready';
+      }
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const styles = {
+        success: 'border-emerald-500/40 bg-slate-900/95 text-emerald-300',
+        warn: 'border-amber-500/40 bg-slate-900/95 text-amber-300',
+        info: 'border-cyan-500/40 bg-slate-900/95 text-cyan-300'
+      };
+      const icons = {
+        success: 'fa-circle-check text-emerald-400',
+        warn: 'fa-circle-exclamation text-amber-400',
+        info: 'fa-circle-info text-cyan-400'
+      };
+
+      toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-xl text-xs font-medium transition-all duration-300 ${styles[type] || styles.info}`;
+      toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(10px)';
+        setTimeout(() => toast.remove(), 250);
+      }, 3000);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    window.onload = function () {
+      renderInstagramInputRows();
+
+      const ytInput = document.getElementById('ytUrlInput');
+      ytInput.addEventListener('input', () => {
+        const clearBtn = document.getElementById('ytClearBtn');
+        if (ytInput.value.trim().length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      });
+    };
+  </script>
+</body>
+</html>
