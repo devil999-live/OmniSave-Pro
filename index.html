@@ -443,9 +443,7 @@
     }
 
     // Automatically use current origin if running on Node server, otherwise target localhost:3000
-    const API_BASE = (window.location.protocol.startsWith('http') && window.location.port === '3000')
-      ? ''
-      : 'http://localhost:3000';
+    const API_BASE = '';
 
     const state = {
       activeTab: 'youtube',
