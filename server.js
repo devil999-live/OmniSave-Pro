@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const ytdlpExec = require('yt-dlp-exec'); // Fully compatible with Render cloud
+const ytdlpExec = require('yt-dlp-exec');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname))); // Serves index.html automatically!
 
-// Smart log filter to keep the terminal clean of spam (progress, frames, bitrates, ffmpeg streams)
+// Smart log filter to keep the terminal clean of spam
 function cleanLog(prefix, data) {
   const msg = data ? data.toString() : '';
   msg.split('\n').forEach(line => {
@@ -37,7 +37,7 @@ function cleanLog(prefix, data) {
 }
 
 // ==========================================
-// 1. YOUTUBE ENDPOINTS (USING YTDLP-EXEC)
+// 1. YOUTUBE ENDPOINTS (ANTI-BLOCK HEADERS)
 // ==========================================
 app.post('/api/youtube/info', async (req, res) => {
   const { url } = req.body;
@@ -46,7 +46,11 @@ app.post('/api/youtube/info', async (req, res) => {
   try {
     const info = await ytdlpExec(url, {
       dumpJson: true,
-      noPlaylist: true
+      noPlaylist: true,
+      forceIpv4: true,
+      noCheckCertificates: true,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      extractorArgs: 'youtube:player_client=android,web'
     });
     res.json({
       title: info.title,
@@ -57,7 +61,7 @@ app.post('/api/youtube/info', async (req, res) => {
     });
   } catch (err) {
     cleanLog('[YouTube Info Error]', err);
-    res.status(500).json({ error: 'Failed to extract video info via yt-dlp' });
+    res.status(500).json({ error: 'Failed to extract video info. YouTube might be blocking Render IP temporarily.' });
   }
 });
 
@@ -74,7 +78,11 @@ app.get('/api/download-muxed', (req, res) => {
     
     ytdlpExec(url, {
       getUrl: true,
-      format: formatSelector
+      format: formatSelector,
+      forceIpv4: true,
+      noCheckCertificates: true,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      extractorArgs: 'youtube:player_client=android,web'
     }).then(output => {
       const directUrl = output.trim().split('\n')[0];
       if (directUrl) {
@@ -98,13 +106,21 @@ app.get('/api/download-muxed', (req, res) => {
         extractAudio: true,
         audioFormat: 'mp3',
         audioQuality: `${abr}K`,
-        output: '-'
+        output: '-',
+        forceIpv4: true,
+        noCheckCertificates: true,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        extractorArgs: 'youtube:player_client=android,web'
       };
     } else {
       flags = {
         format: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best/best`,
         mergeOutputFormat: 'mp4',
-        output: '-'
+        output: '-',
+        forceIpv4: true,
+        noCheckCertificates: true,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        extractorArgs: 'youtube:player_client=android,web'
       };
     }
 
@@ -127,10 +143,8 @@ app.get('/api/download-muxed', (req, res) => {
 
 
 // ==========================================
-// 2. INSTAGRAM ENDPOINTS (FIXED FOR RENDER)
+// 2. INSTAGRAM ENDPOINTS
 // ==========================================
-
-// Batch Endpoint: Fetches real caption securely using ytdlpExec instead of execSync
 app.post('/api/instagram/batch', async (req, res) => {
   const { urls } = req.body;
   if (!urls || !Array.isArray(urls)) return res.status(400).json({ error: 'URLs array required' });
@@ -145,7 +159,9 @@ app.post('/api/instagram/batch', async (req, res) => {
     try {
       const info = await ytdlpExec(url, {
         dumpJson: true,
-        noPlaylist: true
+        noPlaylist: true,
+        forceIpv4: true,
+        noCheckCertificates: true
       });
       if (info.title || info.description) {
         caption = (info.title || info.description).split('\n')[0];
@@ -165,7 +181,6 @@ app.post('/api/instagram/batch', async (req, res) => {
   res.json({ items });
 });
 
-// Single Download Endpoint: Server-side secure streaming guaranteeing Video + Audio
 app.get('/api/instagram/download', (req, res) => {
   const { url, title = 'Instagram_Reel' } = req.query;
   if (!url) return res.status(400).send('URL required');
