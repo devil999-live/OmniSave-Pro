@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// Smart log filter to keep the terminal clean
+// Smart log filter to keep the terminal clean of spam
 function cleanLog(prefix, data) {
   const msg = data ? data.toString() : '';
   msg.split('\n').forEach(line => {
@@ -100,30 +100,41 @@ app.get('/api/download-muxed', async (req, res) => {
   res.setHeader('Content-Type', type === 'audio' ? 'audio/mpeg' : 'video/mp4');
 
   try {
-    // Force multiple client types (web, ios, android) to bypass 429/403 blocks on datacenter IPs
+    // Bulletproof flags using Android client to bypass 429/403 datacenter blocks on Render
+    const antiBlockFlags = {
+      noCheckCertificates: true,
+      forceIpv4: true,
+      geoBypass: true,
+      extractorArgs: 'youtube:player_client=android'
+    };
+
     const flags = type === 'audio' ? {
+      ...antiBlockFlags,
       format: 'bestaudio',
       extractAudio: true,
       audioFormat: 'mp3',
       audioQuality: `${abr}K`,
-      output: '-',
-      noCheckCertificates: true,
-      forceIpv4: true,
-      extractorArgs: 'youtube:player_client=web,ios'
+      output: '-'
     } : {
+      ...antiBlockFlags,
       format: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best/best`,
       mergeOutputFormat: 'mp4',
-      output: '-',
-      noCheckCertificates: true,
-      forceIpv4: true,
-      extractorArgs: 'youtube:player_client=web,ios'
+      output: '-'
     };
 
     const subprocess = ytdlpExec.exec(url, flags);
+    
     subprocess.stdout.pipe(res);
 
     subprocess.stderr.on('data', (err) => {
       cleanLog('[Download log]', err);
+    });
+
+    subprocess.on('error', (err) => {
+      cleanLog('[Subprocess Error]', err);
+      if (!res.headersSent) {
+        res.status(500).send('Download stream failed.');
+      }
     });
 
     req.on('close', () => {
