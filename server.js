@@ -36,7 +36,6 @@ function cleanLog(prefix, data) {
   });
 }
 
-// Helper function to extract YouTube Video ID
 function extractYouTubeId(url) {
   try {
     const parsed = new URL(url.trim());
@@ -59,7 +58,7 @@ function extractYouTubeId(url) {
 }
 
 // ==========================================
-// 1. YOUTUBE INFO ENDPOINT (BYPASSES RENDER IP BLOCK USING OEMBED)
+// 1. YOUTUBE INFO ENDPOINT (OEMBED BYPASS)
 // ==========================================
 app.post('/api/youtube/info', async (req, res) => {
   const { url } = req.body;
@@ -69,7 +68,6 @@ app.post('/api/youtube/info', async (req, res) => {
   if (!videoId) return res.status(400).json({ error: 'Invalid YouTube URL' });
 
   try {
-    // Fetch via public oEmbed API to completely avoid Render IP blocking / 429 errors
     const fetch = (await import('node-fetch')).default || global.fetch;
     const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
     const oembed = await oembedRes.json();
@@ -87,6 +85,9 @@ app.post('/api/youtube/info', async (req, res) => {
   }
 });
 
+// ==========================================
+// 2. YOUTUBE DOWNLOAD & MUXING ENDPOINT (FIXED CLIENT BYPASS)
+// ==========================================
 app.get('/api/download-muxed', (req, res) => {
   const { url, height = '720', type = 'video', abr = '192', title = 'video', direct = '0' } = req.query;
   if (!url) return res.status(400).send('URL is required');
@@ -95,14 +96,21 @@ app.get('/api/download-muxed', (req, res) => {
   const ext = type === 'audio' ? 'mp3' : 'mp4';
   const filename = `${safeTitle}_${type === 'audio' ? abr + 'kbps' : height + 'p'}.${ext}`;
 
+  // Common anti-block flags that bypass JS challenge & 429/403 errors on Render
+  const antiBlockFlags = {
+    forceIpv4: true,
+    noCheckCertificates: true,
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    extractorArgs: 'youtube:player_client=android'
+  };
+
   if (direct === '1' || (type === 'video' && Number(height) <= 720)) {
     const formatSelector = type === 'audio' ? 'bestaudio' : `best[height<=${height}][ext=mp4]/best[height<=${height}]/best`;
     
     ytdlpExec(url, {
+      ...antiBlockFlags,
       getUrl: true,
-      format: formatSelector,
-      forceIpv4: true,
-      noCheckCertificates: true
+      format: formatSelector
     }).then(output => {
       const directUrl = output.trim().split('\n')[0];
       if (directUrl) {
@@ -122,21 +130,19 @@ app.get('/api/download-muxed', (req, res) => {
     let flags = {};
     if (type === 'audio') {
       flags = {
+        ...antiBlockFlags,
         format: 'bestaudio',
         extractAudio: true,
         audioFormat: 'mp3',
         audioQuality: `${abr}K`,
-        output: '-',
-        forceIpv4: true,
-        noCheckCertificates: true
+        output: '-'
       };
     } else {
       flags = {
+        ...antiBlockFlags,
         format: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best/best`,
         mergeOutputFormat: 'mp4',
-        output: '-',
-        forceIpv4: true,
-        noCheckCertificates: true
+        output: '-'
       };
     }
 
@@ -159,7 +165,7 @@ app.get('/api/download-muxed', (req, res) => {
 
 
 // ==========================================
-// 2. INSTAGRAM ENDPOINTS
+// 3. INSTAGRAM ENDPOINTS
 // ==========================================
 app.post('/api/instagram/batch', async (req, res) => {
   const { urls } = req.body;
